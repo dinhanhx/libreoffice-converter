@@ -40,3 +40,35 @@ def docx_to_pdf(input_path: Path, output_dir: Path) -> Path:
 
 def docx_to_html(input_path: Path, output_dir: Path) -> Path:
     return _run_soffice(input_path, output_dir, "html")
+
+
+def docx_to_html_zip(input_path: Path, output_dir: Path, original_stem: str) -> Path:
+    """Convert docx to html with images and return path to a zip archive.
+
+    soffice produces:
+      <stem>.html
+      <stem>_html_<hash>.png  (zero or more)
+
+    The zip contains:
+      <original_stem>.html
+      <stem>_html_<hash>.png  (image filenames kept as-is)
+    """
+    import io
+    import zipfile
+
+    html_path = _run_soffice(input_path, output_dir, "html")
+    image_paths = list(output_dir.glob(f"{input_path.stem}_html_*.png"))
+
+    zip_path = output_dir / f"{input_path.stem}.zip"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(html_path, arcname=f"{original_stem}.html")
+        for img in image_paths:
+            zf.write(img, arcname=img.name)
+    zip_path.write_bytes(buf.getvalue())
+
+    html_path.unlink(missing_ok=True)
+    for img in image_paths:
+        img.unlink(missing_ok=True)
+
+    return zip_path

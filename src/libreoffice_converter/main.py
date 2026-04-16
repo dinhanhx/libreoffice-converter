@@ -5,7 +5,12 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from libreoffice_converter.converters import doc_to_docx, docx_to_html, docx_to_pdf
+from libreoffice_converter.converters import (
+    doc_to_docx,
+    docx_to_html,
+    docx_to_html_zip,
+    docx_to_pdf,
+)
 from libreoffice_converter.utils import (
     cleanup_task,
     get_temp_dir,
@@ -95,4 +100,25 @@ async def convert_docx_to_html(file: UploadFile = File(...)):
         media_type="text/html",
         filename=download_name,
         background=cleanup_task(output_path),
+    )
+
+
+@app.post("/convert/docx-to-html-zip")
+async def convert_docx_to_html_zip(file: UploadFile = File(...)):
+    validate_extension(file.filename, [".docx"])
+    original_stem = Path(file.filename or "output").stem
+    tmp = get_temp_dir()
+    input_path = await save_upload(file, tmp)
+    try:
+        zip_path = docx_to_html_zip(input_path, tmp, original_stem)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
+    finally:
+        input_path.unlink(missing_ok=True)
+
+    return FileResponse(
+        path=zip_path,
+        media_type="application/zip",
+        filename=f"{original_stem}.zip",
+        background=cleanup_task(zip_path),
     )
