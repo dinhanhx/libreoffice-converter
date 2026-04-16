@@ -1,0 +1,14 @@
+services:
+  libreoffice-converter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: libreoffice-converter:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      UVICORN_WORKERS: 4
+      SOFFICE_TIMEOUT: 300
+      MAX_UPLOAD_BYTES: 52428800
