@@ -17,7 +17,7 @@ A FastAPI service that converts documents using `soffice` (LibreOffice). Statele
 docker compose up --build
 ```
 
-Service is available at `http://localhost:8000`.
+Service is available at `http://localhost:8000`. Requests are proxied through Caddy.
 
 ## Run locally with uv
 
@@ -29,6 +29,23 @@ source .venv/bin/activate
 pip install -e .
 uvicorn libreoffice_converter.main:app --host 0.0.0.0 --port 8000
 ```
+
+## Architecture
+
+In Docker Compose, Caddy sits in front of the FastAPI app as a reverse proxy:
+
+```
+client → Caddy :8000 → libreoffice-converter :8000 (internal)
+```
+
+Caddy enforces limits on `/convert/*` endpoints:
+
+| Limit | Value |
+|---|---|
+| Rate limit | 40 requests / minute per IP |
+| Max request body | 50 MB |
+
+`/health` and `/docs` have no limits applied.
 
 ## Environment variables
 
@@ -42,9 +59,11 @@ uvicorn libreoffice_converter.main:app --host 0.0.0.0 --port 8000
 
 ```
 GET  /health
+GET  /docs
 POST /convert/doc-to-docx
 POST /convert/docx-to-pdf
 POST /convert/docx-to-html
+POST /convert/docx-to-html-zip
 ```
 
 ## Example
