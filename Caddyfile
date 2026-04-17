@@ -1,0 +1,35 @@
+{
+	admin off
+}
+
+:80 {
+	# No limits for health and docs
+	handle /health {
+		reverse_proxy libreoffice-converter:8000
+	}
+
+	handle /docs {
+		reverse_proxy libreoffice-converter:8000
+	}
+
+	handle /openapi.json {
+		reverse_proxy libreoffice-converter:8000
+	}
+
+	# Rate limit and file size limit for /convert/*
+	handle /convert/* {
+		rate_limit {
+			zone convert_zone {
+				key    {remote_host}
+				events 40
+				window 1m
+			}
+		}
+
+		request_body {
+			max_size 50MB
+		}
+
+		reverse_proxy libreoffice-converter:8000
+	}
+}

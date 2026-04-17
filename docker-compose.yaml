@@ -1,11 +1,20 @@
 services:
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    ports:
+      - "8000:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - libreoffice-converter
+
   libreoffice-converter:
     build:
       context: .
       dockerfile: Dockerfile
     image: libreoffice-converter:latest
-    ports:
-      - "8000:8000"
     volumes:
       - .:/app
     environment:
