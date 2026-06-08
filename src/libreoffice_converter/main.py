@@ -1,6 +1,8 @@
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import anyio
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -15,14 +17,25 @@ from libreoffice_converter.utils import (
     cleanup_task,
     get_temp_dir,
     save_upload,
+    sweep_temp_dir,
     validate_extension,
 )
 
 
+async def _periodic_sweep():
+    while True:
+        await anyio.sleep(int(os.getenv("SWEEP_INTERVAL_SECONDS", 600)))
+        sweep_temp_dir(int(os.getenv("TEMP_MAX_AGE_SECONDS", 3600)))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    get_temp_dir()  # ensure temp dir exists at startup
-    yield
+    get_temp_dir()
+    sweep_temp_dir()
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_periodic_sweep)
+        yield
+        tg.cancel_scope.cancel()
 
 
 app = FastAPI(title="LibreOffice Converter", lifespan=lifespan)
@@ -52,7 +65,7 @@ async def convert_doc_to_docx(file: UploadFile = File(...)):
     tmp = get_temp_dir()
     input_path = await save_upload(file, tmp)
     try:
-        output_path = doc_to_docx(input_path, tmp)
+        output_path = await doc_to_docx(input_path, tmp)
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
     finally:
@@ -79,7 +92,7 @@ async def convert_docx_to_pdf(file: UploadFile = File(...)):
     tmp = get_temp_dir()
     input_path = await save_upload(file, tmp)
     try:
-        output_path = docx_to_pdf(input_path, tmp)
+        output_path = await docx_to_pdf(input_path, tmp)
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
     finally:
@@ -105,7 +118,7 @@ async def convert_docx_to_html(file: UploadFile = File(...)):
     tmp = get_temp_dir()
     input_path = await save_upload(file, tmp)
     try:
-        output_path = docx_to_html(input_path, tmp)
+        output_path = await docx_to_html(input_path, tmp)
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
     finally:
@@ -132,7 +145,7 @@ async def convert_docx_to_html_zip(file: UploadFile = File(...)):
     tmp = get_temp_dir()
     input_path = await save_upload(file, tmp)
     try:
-        zip_path = docx_to_html_zip(input_path, tmp, original_stem)
+        zip_path = await docx_to_html_zip(input_path, tmp, original_stem)
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
     finally:

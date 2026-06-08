@@ -2,8 +2,14 @@ import os
 import subprocess
 from pathlib import Path
 
+import anyio
+from anyio.to_thread import run_sync
+
 SOFFICE_TIMEOUT = int(os.getenv("SOFFICE_TIMEOUT", 300))
 UNOSERVER_PORT = os.getenv("UNOSERVER_PORT", "2003")
+MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT_CONVERSIONS", 2))
+
+_semaphore = anyio.Semaphore(MAX_CONCURRENT)
 
 
 def _run_unoconvert(input_path: Path, output_path: Path, convert_to: str) -> Path:
@@ -26,23 +32,28 @@ def _run_unoconvert(input_path: Path, output_path: Path, convert_to: str) -> Pat
     return output_path
 
 
-def doc_to_docx(input_path: Path, output_dir: Path) -> Path:
-    return _run_unoconvert(input_path, output_dir / (input_path.stem + ".docx"), "docx")
+async def _run_unoconvert_async(input_path: Path, output_path: Path, convert_to: str) -> Path:
+    async with _semaphore:
+        return await run_sync(lambda: _run_unoconvert(input_path, output_path, convert_to))
 
 
-def docx_to_pdf(input_path: Path, output_dir: Path) -> Path:
-    return _run_unoconvert(input_path, output_dir / (input_path.stem + ".pdf"), "pdf")
+async def doc_to_docx(input_path: Path, output_dir: Path) -> Path:
+    return await _run_unoconvert_async(input_path, output_dir / (input_path.stem + ".docx"), "docx")
 
 
-def docx_to_html(input_path: Path, output_dir: Path) -> Path:
-    return _run_unoconvert(input_path, output_dir / (input_path.stem + ".html"), "html")
+async def docx_to_pdf(input_path: Path, output_dir: Path) -> Path:
+    return await _run_unoconvert_async(input_path, output_dir / (input_path.stem + ".pdf"), "pdf")
 
 
-def docx_to_html_zip(input_path: Path, output_dir: Path, original_stem: str) -> Path:
+async def docx_to_html(input_path: Path, output_dir: Path) -> Path:
+    return await _run_unoconvert_async(input_path, output_dir / (input_path.stem + ".html"), "html")
+
+
+async def docx_to_html_zip(input_path: Path, output_dir: Path, original_stem: str) -> Path:
     import io
     import zipfile
 
-    html_path = _run_unoconvert(input_path, output_dir / (input_path.stem + ".html"), "html")
+    html_path = await _run_unoconvert_async(input_path, output_dir / (input_path.stem + ".html"), "html")
     image_paths = list(output_dir.glob(f"{input_path.stem}_html_*.png"))
 
     zip_path = output_dir / f"{input_path.stem}.zip"

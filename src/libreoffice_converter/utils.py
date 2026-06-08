@@ -1,5 +1,7 @@
 import os
+import shutil
 import tempfile
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -54,3 +56,22 @@ def cleanup_task(*paths: Path) -> BackgroundTask:
             p.unlink(missing_ok=True)
 
     return BackgroundTask(_cleanup)
+
+
+def sweep_temp_dir(max_age_seconds: int = 3600) -> int:
+    base = get_temp_dir()
+    now = time.time()
+    removed = 0
+    for entry in base.iterdir():
+        try:
+            age = now - entry.stat().st_mtime
+        except FileNotFoundError:
+            continue
+        if age < max_age_seconds:
+            continue
+        if entry.is_dir():
+            shutil.rmtree(entry, ignore_errors=True)
+        else:
+            entry.unlink(missing_ok=True)
+        removed += 1
+    return removed
