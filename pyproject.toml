@@ -11,7 +11,6 @@ dependencies = [
     "fastapi[standard]",
     "python-multipart",
     "uvicorn[standard]",
-    "aiofiles",
 ]
 
 [build-system]
