@@ -3,19 +3,17 @@ import subprocess
 from pathlib import Path
 
 SOFFICE_TIMEOUT = int(os.getenv("SOFFICE_TIMEOUT", 300))
+UNOSERVER_PORT = os.getenv("UNOSERVER_PORT", "2003")
 
 
-def _run_soffice(input_path: Path, output_dir: Path, convert_to: str) -> Path:
-    """Run soffice --headless --convert-to and return the output file path."""
+def _run_unoconvert(input_path: Path, output_path: Path, convert_to: str) -> Path:
     result = subprocess.run(
         [
-            "soffice",
-            "--headless",
-            "--convert-to",
-            convert_to,
-            "--outdir",
-            str(output_dir),
+            "unoconvert",
+            "--port", UNOSERVER_PORT,
+            "--convert-to", convert_to,
             str(input_path),
+            str(output_path),
         ],
         capture_output=True,
         text=True,
@@ -23,40 +21,28 @@ def _run_soffice(input_path: Path, output_dir: Path, convert_to: str) -> Path:
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr or result.stdout)
-
-    output_path = output_dir / (input_path.stem + "." + convert_to.split(":")[0])
     if not output_path.exists():
-        raise RuntimeError(f"soffice did not produce expected output: {output_path}")
+        raise RuntimeError(f"unoconvert did not produce expected output: {output_path}")
     return output_path
 
 
 def doc_to_docx(input_path: Path, output_dir: Path) -> Path:
-    return _run_soffice(input_path, output_dir, "docx")
+    return _run_unoconvert(input_path, output_dir / (input_path.stem + ".docx"), "docx")
 
 
 def docx_to_pdf(input_path: Path, output_dir: Path) -> Path:
-    return _run_soffice(input_path, output_dir, "pdf")
+    return _run_unoconvert(input_path, output_dir / (input_path.stem + ".pdf"), "pdf")
 
 
 def docx_to_html(input_path: Path, output_dir: Path) -> Path:
-    return _run_soffice(input_path, output_dir, "html")
+    return _run_unoconvert(input_path, output_dir / (input_path.stem + ".html"), "html")
 
 
 def docx_to_html_zip(input_path: Path, output_dir: Path, original_stem: str) -> Path:
-    """Convert docx to html with images and return path to a zip archive.
-
-    soffice produces:
-      <stem>.html
-      <stem>_html_<hash>.png  (zero or more)
-
-    The zip contains:
-      <original_stem>.html
-      <stem>_html_<hash>.png  (image filenames kept as-is)
-    """
     import io
     import zipfile
 
-    html_path = _run_soffice(input_path, output_dir, "html")
+    html_path = _run_unoconvert(input_path, output_dir / (input_path.stem + ".html"), "html")
     image_paths = list(output_dir.glob(f"{input_path.stem}_html_*.png"))
 
     zip_path = output_dir / f"{input_path.stem}.zip"
