@@ -35,12 +35,18 @@ app.add_middleware(
 )
 
 
-@app.get("/health")
+@app.get("/health", tags=["System"])
 def health():
     return {"status": "ok"}
 
 
-@app.post("/convert/doc-to-docx")
+@app.post(
+    "/convert/doc-to-docx",
+    tags=["Conversions"],
+    summary="Convert .doc → .docx",
+    response_description="The converted .docx file as a binary download.",
+)
+@app.post("/convert", tags=["Legacy"])
 async def convert_doc_to_docx(file: UploadFile = File(...)):
     validate_extension(file.filename, [".doc"])
     tmp = get_temp_dir()
@@ -61,7 +67,13 @@ async def convert_doc_to_docx(file: UploadFile = File(...)):
     )
 
 
-@app.post("/convert/docx-to-pdf")
+@app.post(
+    "/convert/docx-to-pdf",
+    tags=["Conversions"],
+    summary="Convert .docx → .pdf",
+    response_description="The converted .pdf file as a binary download.",
+)
+@app.post("/docx2pdf", tags=["Legacy"])
 async def convert_docx_to_pdf(file: UploadFile = File(...)):
     validate_extension(file.filename, [".docx"])
     tmp = get_temp_dir()
@@ -82,7 +94,12 @@ async def convert_docx_to_pdf(file: UploadFile = File(...)):
     )
 
 
-@app.post("/convert/docx-to-html")
+@app.post(
+    "/convert/docx-to-html",
+    tags=["Conversions"],
+    summary="Convert .docx → .html",
+    response_description="The converted .html file as a binary download.",
+)
 async def convert_docx_to_html(file: UploadFile = File(...)):
     validate_extension(file.filename, [".docx"])
     tmp = get_temp_dir()
@@ -103,7 +120,12 @@ async def convert_docx_to_html(file: UploadFile = File(...)):
     )
 
 
-@app.post("/convert/docx-to-html-zip")
+@app.post(
+    "/convert/docx-to-html-zip",
+    tags=["Conversions"],
+    summary="Convert .docx → .html (with assets as ZIP)",
+    response_description="A ZIP file containing the .html file and its assets folder.",
+)
 async def convert_docx_to_html_zip(file: UploadFile = File(...)):
     validate_extension(file.filename, [".docx"])
     original_stem = Path(file.filename or "output").stem
