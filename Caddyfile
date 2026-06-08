@@ -16,6 +16,39 @@
 		reverse_proxy libreoffice-converter:8000
 	}
 
+	# Rate limit and file size limit for legacy endpoints
+	handle /docx2pdf {
+		rate_limit {
+			zone convert_zone {
+				key    {remote_host}
+				events 40
+				window 1m
+			}
+		}
+
+		request_body {
+			max_size 50MB
+		}
+
+		reverse_proxy libreoffice-converter:8000
+	}
+
+	handle /convert {
+		rate_limit {
+			zone convert_zone {
+				key    {remote_host}
+				events 40
+				window 1m
+			}
+		}
+
+		request_body {
+			max_size 50MB
+		}
+
+		reverse_proxy libreoffice-converter:8000
+	}
+
 	# Rate limit and file size limit for /convert/*
 	handle /convert/* {
 		rate_limit {
