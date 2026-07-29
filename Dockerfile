@@ -1,6 +1,7 @@
 FROM python:3.10.20-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
         libreoffice \
         libreoffice-script-provider-python \
         python3-pip \
@@ -16,10 +17,11 @@ WORKDIR /app
 COPY pyproject.toml .
 COPY README.md .
 COPY src/ src/
+COPY entrypoint.sh .
 
 RUN pip install --no-cache-dir uv \
     && uv pip install --system --no-cache -e .
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "unoserver --port 2003 & uvicorn libreoffice_converter.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-1}"]
+CMD ["sh", "entrypoint.sh"]

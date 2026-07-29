@@ -1,7 +1,7 @@
 [project]
 name = "libreoffice-converter"
 version = "0.1.0"
-description = "Add your description here"
+description = "libreoffice converter"
 readme = "README.md"
 authors = [
     { name = "dinhanhx", email = "dinhanhx@gmail.com" }
@@ -10,6 +10,7 @@ requires-python = ">=3.10.20"
 dependencies = [
     "fastapi[standard]",
     "python-multipart",
+    "redis[asyncio]>=6.0",
     "uvicorn[standard]",
 ]
 

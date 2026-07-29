@@ -1,15 +1,16 @@
 # libreoffice-converter
 
-A FastAPI service that converts documents using `soffice` (LibreOffice). Stateless — files are stored temporarily during processing only.
+A FastAPI service that converts documents using LibreOffice (`unoserver`). Stateless — files are stored temporarily during processing only.
 
 - `.doc` to `.docx`
 - `.docx` to `.pdf`
 - `.docx` to `.html`
+- `.docx` to `.html` + assets as ZIP
 
 ## Requirements
 
 - Docker + Docker Compose, or
-- Python 3.10.20+ and LibreOffice installed locally
+- Python 3.10.20+, LibreOffice, and Redis installed locally
 
 ## Run with Docker Compose
 
@@ -17,7 +18,7 @@ A FastAPI service that converts documents using `soffice` (LibreOffice). Statele
 docker compose up --build
 ```
 
-Service is available at `http://localhost:8000`. Requests are proxied through Caddy.
+Service is available at `http://localhost:9700`. Requests are proxied through Caddy.
 
 ## Run locally with uv
 
@@ -30,30 +31,57 @@ pip install -e .
 uvicorn libreoffice_converter.main:app --host 0.0.0.0 --port 8000
 ```
 
+Requires a local Redis instance and `unoserver` running separately.
+
 ## Architecture
 
-In Docker Compose, Caddy sits in front of the FastAPI app as a reverse proxy:
+```
+client → Caddy :9700 → FastAPI :8000 (N uvicorn workers)
+                            ↕                ↕
+                        Redis :6379    unoserver :2003
+                     (conversion queue)  (single shared process)
+```
 
-```
-client → Caddy :8000 → libreoffice-converter :8000 (internal)
-```
+`entrypoint.sh` starts one supervised `unoserver` process (restarted on crash) and then execs `uvicorn`. This keeps a single LibreOffice/unoserver instance shared across all uvicorn workers, regardless of `UVICORN_WORKERS` — starting one unoserver per worker would collide on the same port.
 
 Caddy enforces limits on `/convert/*` endpoints:
 
 | Limit | Value |
 |---|---|
-| Rate limit | 40 requests / minute per IP |
+| Rate limit | 30 requests / minute per IP |
 | Max request body | 50 MB |
 
-`/health` and `/docs` have no limits applied.
+`/health` and `/docs` have no Caddy limits applied.
+
+### Conversion queue
+
+All conversion endpoints are gated by a Redis-backed queue shared across all Uvicorn workers. Requests to `/health`, `/docs`, and `/openapi.json` bypass the queue entirely.
+
+- If the number of waiting requests exceeds `MAX_QUEUE_SIZE`, the request is rejected immediately with `503`.
+- If a request waits longer than `QUEUE_TIMEOUT_SECONDS` without acquiring a slot, it is rejected with `503`.
+
+`503` responses include a `Retry-After: 5` header and a JSON body:
+
+```json
+{"detail": "Queue full", "active": 4, "queued": 20}
+```
 
 ## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `UVICORN_WORKERS` | `1` | Number of uvicorn worker processes |
-| `SOFFICE_TIMEOUT` | `300` | Timeout in seconds for each soffice conversion |
-| `MAX_UPLOAD_BYTES` | `52428800` | Max upload size in bytes (default 50 MB) |
+| `UVICORN_WORKERS` | `2` | Number of Uvicorn worker processes |
+| `SOFFICE_TIMEOUT` | `300` | Timeout in seconds for each conversion |
+| `MAX_UPLOAD_BYTES` | `52428800` | Max upload size in bytes (50 MB) |
+| `MAX_CONCURRENT_CONVERSIONS` | `4` | Max simultaneous conversions across all workers |
+| `SWEEP_INTERVAL_SECONDS` | `600` | How often the temp dir is swept |
+| `TEMP_MAX_AGE_SECONDS` | `3600` | Max age of temp files before deletion |
+| `REDIS_URL` | `redis://redis:6379/0` | Redis connection URL |
+| `MAX_QUEUE_SIZE` | `40` | Max requests waiting in the queue |
+| `UNOSERVER_PORT` | `2003` | Port unoserver listens on |
+| `UNOSERVER_RESTART_DELAY_SECONDS` | `3` | Delay before restarting unoserver after it exits |
+| `QUEUE_TIMEOUT_SECONDS` | `60` | Seconds a queued request waits before 503 |
+| `QUEUE_POLL_INTERVAL_MS` | `200` | Polling interval while waiting for a slot |
 
 ## Endpoints
 
@@ -66,8 +94,15 @@ POST /convert/docx-to-html
 POST /convert/docx-to-html-zip
 ```
 
+Legacy aliases (still functional):
+
+```
+POST /convert   → /convert/doc-to-docx
+POST /docx2pdf  → /convert/docx-to-pdf
+```
+
 ## Example
 
 ```bash
-curl -F "file=@report.docx" http://localhost:8000/convert/docx-to-pdf -o report.pdf
+curl -F "file=@report.docx" http://localhost:9700/convert/docx-to-pdf -o report.pdf
 ```

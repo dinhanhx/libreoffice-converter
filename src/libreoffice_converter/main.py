@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -6,6 +7,7 @@ import anyio
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from redis.asyncio import Redis
 
 from libreoffice_converter.converters import (
     doc_to_docx,
@@ -13,6 +15,7 @@ from libreoffice_converter.converters import (
     docx_to_html_zip,
     docx_to_pdf,
 )
+from libreoffice_converter.queue import ConversionQueueMiddleware
 from libreoffice_converter.utils import (
     cleanup_task,
     get_temp_dir,
@@ -21,6 +24,7 @@ from libreoffice_converter.utils import (
     validate_extension,
 )
 
+logger = logging.getLogger(__name__)
 
 async def _periodic_sweep():
     while True:
@@ -30,16 +34,20 @@ async def _periodic_sweep():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    redis = Redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379/0"))
+    app.state.redis = redis
     get_temp_dir()
     sweep_temp_dir()
     async with anyio.create_task_group() as tg:
         tg.start_soon(_periodic_sweep)
         yield
         tg.cancel_scope.cancel()
+    await redis.aclose()
 
 
 app = FastAPI(title="LibreOffice Converter", lifespan=lifespan)
 
+app.add_middleware(ConversionQueueMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

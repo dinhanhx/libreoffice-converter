@@ -5,15 +5,15 @@
 :80 {
 	# No limits for health and docs
 	handle /health {
-		reverse_proxy libreoffice-converter:8000
+		reverse_proxy fastapi:8000
 	}
 
 	handle /docs {
-		reverse_proxy libreoffice-converter:8000
+		reverse_proxy fastapi:8000
 	}
 
 	handle /openapi.json {
-		reverse_proxy libreoffice-converter:8000
+		reverse_proxy fastapi:8000
 	}
 
 	# Rate limit and file size limit for legacy endpoints
@@ -21,7 +21,7 @@
 		rate_limit {
 			zone convert_zone {
 				key    {remote_host}
-				events 40
+				events 30
 				window 1m
 			}
 		}
@@ -30,14 +30,14 @@
 			max_size 50MB
 		}
 
-		reverse_proxy libreoffice-converter:8000
+		reverse_proxy fastapi:8000
 	}
 
 	handle /convert {
 		rate_limit {
 			zone convert_zone {
 				key    {remote_host}
-				events 40
+				events 30
 				window 1m
 			}
 		}
@@ -46,7 +46,7 @@
 			max_size 50MB
 		}
 
-		reverse_proxy libreoffice-converter:8000
+		reverse_proxy fastapi:8000
 	}
 
 	# Rate limit and file size limit for /convert/*
@@ -54,15 +54,15 @@
 		rate_limit {
 			zone convert_zone {
 				key    {remote_host}
-				events 40
+				events 30
 				window 1m
 			}
 		}
 
 		request_body {
-			max_size 50MB
+			max_size 30MB
 		}
 
-		reverse_proxy libreoffice-converter:8000
+		reverse_proxy fastapi:8000
 	}
 }
