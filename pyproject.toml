@@ -9,6 +9,8 @@ authors = [
 requires-python = ">=3.10.20"
 dependencies = [
     "fastapi[standard]",
+    "lxml",
+    "python-docx",
     "python-multipart",
     "redis[asyncio]>=6.0",
     "uvicorn[standard]",

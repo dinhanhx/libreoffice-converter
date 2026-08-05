@@ -26,8 +26,9 @@ services:
       TEMP_MAX_AGE_SECONDS: 3600
       REDIS_URL: redis://redis:6379/0
       MAX_QUEUE_SIZE: 120
-      QUEUE_TIMEOUT_SECONDS: 60
+      QUEUE_TIMEOUT_SECONDS: 300
       QUEUE_POLL_INTERVAL_MS: 200
+      PREP_DOCX: true
     depends_on:
       redis:
         condition: service_healthy
