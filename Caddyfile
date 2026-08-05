@@ -16,16 +16,8 @@
 		reverse_proxy fastapi:8000
 	}
 
-	# Rate limit and file size limit for legacy endpoints
+	# File size limit for legacy endpoints
 	handle /docx2pdf {
-		rate_limit {
-			zone convert_zone {
-				key    {remote_host}
-				events 30
-				window 1m
-			}
-		}
-
 		request_body {
 			max_size 50MB
 		}
@@ -34,14 +26,6 @@
 	}
 
 	handle /convert {
-		rate_limit {
-			zone convert_zone {
-				key    {remote_host}
-				events 30
-				window 1m
-			}
-		}
-
 		request_body {
 			max_size 50MB
 		}
@@ -49,18 +33,10 @@
 		reverse_proxy fastapi:8000
 	}
 
-	# Rate limit and file size limit for /convert/*
+	# File size limit for /convert/*
 	handle /convert/* {
-		rate_limit {
-			zone convert_zone {
-				key    {remote_host}
-				events 30
-				window 1m
-			}
-		}
-
 		request_body {
-			max_size 30MB
+			max_size 50MB
 		}
 
 		reverse_proxy fastapi:8000

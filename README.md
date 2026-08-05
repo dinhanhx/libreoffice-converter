@@ -44,14 +44,7 @@ client → Caddy :9700 → FastAPI :8000 (N uvicorn workers)
 
 `entrypoint.sh` starts one supervised `unoserver` process (restarted on crash) and then execs `uvicorn`. This keeps a single LibreOffice/unoserver instance shared across all uvicorn workers, regardless of `UVICORN_WORKERS` — starting one unoserver per worker would collide on the same port.
 
-Caddy enforces limits on `/convert/*` endpoints:
-
-| Limit | Value |
-|---|---|
-| Rate limit | 30 requests / minute per IP |
-| Max request body | 50 MB |
-
-`/health` and `/docs` have no Caddy limits applied.
+Caddy enforces a max request body size on `/convert/*` endpoints (50 MB, 30 MB for `/convert/*`). `/health` and `/docs` have no Caddy limits applied.
 
 ### Conversion queue
 
