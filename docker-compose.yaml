@@ -29,6 +29,8 @@ services:
       QUEUE_TIMEOUT_SECONDS: 300
       QUEUE_POLL_INTERVAL_MS: 200
       PREP_DOCX: true
+      STRIP_RSIDS: true
+      FLATTEN_MERGED_CELLS: true
     depends_on:
       redis:
         condition: service_healthy
