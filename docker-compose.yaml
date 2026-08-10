@@ -18,6 +18,7 @@ services:
     volumes:
       - .:/app
     environment:
+      FASTAPI_OFFLINE: true
       UVICORN_WORKERS: 4
       SOFFICE_TIMEOUT: 300
       MAX_UPLOAD_BYTES: 52428800

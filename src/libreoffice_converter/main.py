@@ -7,6 +7,7 @@ import anyio
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi_offline import FastAPIOffline
 from redis.asyncio import Redis
 
 from libreoffice_converter.converters import (
@@ -45,7 +46,8 @@ async def lifespan(app: FastAPI):
     await redis.aclose()
 
 
-app = FastAPI(title="LibreOffice Converter", lifespan=lifespan)
+FastAPIApp = FastAPIOffline if os.getenv("FASTAPI_OFFLINE", "false").lower() == "true" else FastAPI
+app = FastAPIApp(title="LibreOffice Converter", lifespan=lifespan)
 
 app.add_middleware(ConversionQueueMiddleware)
 app.add_middleware(
