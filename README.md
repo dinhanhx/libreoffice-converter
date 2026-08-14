@@ -63,6 +63,8 @@ All conversion endpoints are gated by a Redis-backed queue shared across all Uvi
 
 | Variable | Default | Description |
 |---|---|---|
+| `FASTAPI_OFFLINE` | `false` | Serve Swagger/Redoc assets bundled offline instead of from a CDN |
+| `ENABLE_DOCS` | `true` | Expose `/docs` and `/redoc` UIs (`/openapi.json` stays available either way) |
 | `UVICORN_WORKERS` | `2` | Number of Uvicorn worker processes |
 | `SOFFICE_TIMEOUT` | `300` | Timeout in seconds for each conversion |
 | `MAX_UPLOAD_BYTES` | `52428800` | Max upload size in bytes (50 MB) |
@@ -75,6 +77,9 @@ All conversion endpoints are gated by a Redis-backed queue shared across all Uvi
 | `UNOSERVER_RESTART_DELAY_SECONDS` | `3` | Delay before restarting unoserver after it exits |
 | `QUEUE_TIMEOUT_SECONDS` | `60` | Seconds a queued request waits before 503 |
 | `QUEUE_POLL_INTERVAL_MS` | `200` | Polling interval while waiting for a slot |
+| `PREP_DOCX` | `false` | Master switch for `.docx` preprocessing before conversion (always strips uniform table-cell borders when enabled) |
+| `STRIP_RSIDS` | `false` | Also strip Word revision-save IDs (requires `PREP_DOCX=true`) |
+| `FLATTEN_MERGED_CELLS` | `false` | Also flatten merged table cells (requires `PREP_DOCX=true`) |
 
 ## Endpoints
 

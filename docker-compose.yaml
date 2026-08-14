@@ -15,10 +15,12 @@ services:
       context: .
       dockerfile: Dockerfile
     image: libreoffice-fastapi:latest
+    platform: linux/amd64
     volumes:
       - .:/app
     environment:
       FASTAPI_OFFLINE: true
+      ENABLE_DOCS: true
       UVICORN_WORKERS: 4
       SOFFICE_TIMEOUT: 300
       MAX_UPLOAD_BYTES: 52428800

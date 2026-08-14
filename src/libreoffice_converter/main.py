@@ -47,7 +47,15 @@ async def lifespan(app: FastAPI):
 
 
 FastAPIApp = FastAPIOffline if os.getenv("FASTAPI_OFFLINE", "false").lower() == "true" else FastAPI
-app = FastAPIApp(title="LibreOffice Converter", lifespan=lifespan)
+ENABLE_DOCS = os.getenv("ENABLE_DOCS", "true").lower() == "true"
+docs_url = "/docs" if ENABLE_DOCS else None
+redoc_url = "/redoc" if ENABLE_DOCS else None
+app = FastAPIApp(
+    title="LibreOffice Converter",
+    lifespan=lifespan,
+    docs_url=docs_url,
+    redoc_url=redoc_url,
+)
 
 app.add_middleware(ConversionQueueMiddleware)
 app.add_middleware(
