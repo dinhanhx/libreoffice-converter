@@ -1,14 +1,16 @@
-import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from uuid import uuid4
 
 import anyio
-from fastapi import FastAPI, File, HTTPException, UploadFile
+import structlog
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi_offline import FastAPIOffline
 from redis.asyncio import Redis
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from libreoffice_converter.converters import (
     doc_to_docx,
@@ -16,6 +18,7 @@ from libreoffice_converter.converters import (
     docx_to_html_zip,
     docx_to_pdf,
 )
+from libreoffice_converter.logging_config import configure_logging
 from libreoffice_converter.queue import ConversionQueueMiddleware
 from libreoffice_converter.utils import (
     cleanup_task,
@@ -25,7 +28,24 @@ from libreoffice_converter.utils import (
     validate_extension,
 )
 
-logger = logging.getLogger(__name__)
+configure_logging()
+
+logger = structlog.get_logger(__name__)
+
+REQUEST_ID_HEADER = "X-Request-ID"
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get(REQUEST_ID_HEADER) or uuid4().hex
+        request.state.request_id = request_id
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+        try:
+            response = await call_next(request)
+        finally:
+            structlog.contextvars.clear_contextvars()
+        response.headers[REQUEST_ID_HEADER] = request_id
+        return response
 
 async def _periodic_sweep():
     while True:
@@ -58,6 +78,7 @@ app = FastAPIApp(
 )
 
 app.add_middleware(ConversionQueueMiddleware)
+app.add_middleware(RequestIDMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -78,17 +99,20 @@ def health():
     response_description="The converted .docx file as a binary download.",
 )
 @app.post("/convert", tags=["Legacy"])
-async def convert_doc_to_docx(file: UploadFile = File(...)):
+async def convert_doc_to_docx(request: Request, file: UploadFile = File(...)):
     validate_extension(file.filename, [".doc"])
+    logger.info("convert.start", route="doc-to-docx", filename=file.filename)
     tmp = get_temp_dir()
-    input_path = await save_upload(file, tmp)
+    input_path = await save_upload(file, tmp, request.state.request_id)
     try:
         output_path = await doc_to_docx(input_path, tmp)
     except RuntimeError as exc:
+        logger.error("convert.failed", route="doc-to-docx", error=str(exc))
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
     finally:
         input_path.unlink(missing_ok=True)
 
+    logger.info("convert.success", route="doc-to-docx")
     download_name = Path(file.filename or "output").stem + ".docx"
     return FileResponse(
         path=output_path,
@@ -105,17 +129,20 @@ async def convert_doc_to_docx(file: UploadFile = File(...)):
     response_description="The converted .pdf file as a binary download.",
 )
 @app.post("/docx2pdf", tags=["Legacy"])
-async def convert_docx_to_pdf(file: UploadFile = File(...)):
+async def convert_docx_to_pdf(request: Request, file: UploadFile = File(...)):
     validate_extension(file.filename, [".docx"])
+    logger.info("convert.start", route="docx-to-pdf", filename=file.filename)
     tmp = get_temp_dir()
-    input_path = await save_upload(file, tmp)
+    input_path = await save_upload(file, tmp, request.state.request_id)
     try:
         output_path = await docx_to_pdf(input_path, tmp)
     except RuntimeError as exc:
+        logger.error("convert.failed", route="docx-to-pdf", error=str(exc))
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
     finally:
         input_path.unlink(missing_ok=True)
 
+    logger.info("convert.success", route="docx-to-pdf")
     download_name = Path(file.filename or "output").stem + ".pdf"
     return FileResponse(
         path=output_path,
@@ -131,17 +158,20 @@ async def convert_docx_to_pdf(file: UploadFile = File(...)):
     summary="Convert .docx → .html",
     response_description="The converted .html file as a binary download.",
 )
-async def convert_docx_to_html(file: UploadFile = File(...)):
+async def convert_docx_to_html(request: Request, file: UploadFile = File(...)):
     validate_extension(file.filename, [".docx"])
+    logger.info("convert.start", route="docx-to-html", filename=file.filename)
     tmp = get_temp_dir()
-    input_path = await save_upload(file, tmp)
+    input_path = await save_upload(file, tmp, request.state.request_id)
     try:
         output_path = await docx_to_html(input_path, tmp)
     except RuntimeError as exc:
+        logger.error("convert.failed", route="docx-to-html", error=str(exc))
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
     finally:
         input_path.unlink(missing_ok=True)
 
+    logger.info("convert.success", route="docx-to-html")
     download_name = Path(file.filename or "output").stem + ".html"
     return FileResponse(
         path=output_path,
@@ -157,18 +187,21 @@ async def convert_docx_to_html(file: UploadFile = File(...)):
     summary="Convert .docx → .html (with assets as ZIP)",
     response_description="A ZIP file containing the .html file and its assets folder.",
 )
-async def convert_docx_to_html_zip(file: UploadFile = File(...)):
+async def convert_docx_to_html_zip(request: Request, file: UploadFile = File(...)):
     validate_extension(file.filename, [".docx"])
+    logger.info("convert.start", route="docx-to-html-zip", filename=file.filename)
     original_stem = Path(file.filename or "output").stem
     tmp = get_temp_dir()
-    input_path = await save_upload(file, tmp)
+    input_path = await save_upload(file, tmp, request.state.request_id)
     try:
         zip_path = await docx_to_html_zip(input_path, tmp, original_stem)
     except RuntimeError as exc:
+        logger.error("convert.failed", route="docx-to-html-zip", error=str(exc))
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
     finally:
         input_path.unlink(missing_ok=True)
 
+    logger.info("convert.success", route="docx-to-html-zip")
     return FileResponse(
         path=zip_path,
         media_type="application/zip",

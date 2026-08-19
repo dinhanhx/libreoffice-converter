@@ -3,7 +3,6 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
-from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
 from starlette.background import BackgroundTask
@@ -33,9 +32,9 @@ def validate_extension(filename: str | None, allowed: list[str]) -> None:
         )
 
 
-async def save_upload(file: UploadFile, dest_dir: Path) -> Path:
+async def save_upload(file: UploadFile, dest_dir: Path, doc_id: str) -> Path:
     suffix = Path(file.filename or "upload").suffix
-    dest = dest_dir / (uuid4().hex + suffix)
+    dest = dest_dir / (doc_id + suffix)
     total = 0
     with dest.open("wb") as f:
         while chunk := await file.read(CHUNK_SIZE):
